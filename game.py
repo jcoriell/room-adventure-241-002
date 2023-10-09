@@ -45,7 +45,7 @@ class Game(Frame):
         """
         self.inventory = []
         Frame.__init__(self, parent)
-        self.pack(fill=BOTH, expand=1)
+        self.pack(fill=BOTH, expand=1) 
 
     def setup_game(self):
         """
@@ -93,28 +93,100 @@ class Game(Frame):
 
 
     def setup_gui(self):
-        pass
+        # setup the input element
+        self.player_input = Entry(self, bg="white", fg="black")
+        self.player_input.bind("<Return>", self.process_input)
+        self.player_input.pack(side=BOTTOM, fill=X)
+        self.player_input.focus()
+        
+        # setup the image element
+        img = None                      # the actual image
+        img_width = Game.WIDTH // 2
+        self.image_container = Label(   # the Label element containing the image
+            self,
+            width = img_width,
+            image = img
+        )
+        self.image_container.image = img                # persists the image past this function
+        self.image_container.pack(side=LEFT, fill=Y)
+        self.image_container.pack_propagate(False)      # prevent image width from controlling container width
+
+        # setup the info area
+        text_container_width = Game.WIDTH // 2
+        text_container = Frame(self, width=text_container_width)
+
+        self.text = Text(
+            text_container,     # parent element is the text_container this time, not self (the Game)
+            bg="lightgrey",
+            fg="black",
+            state=DISABLED      # making so the text cannot be changed
+        )
+        self.text.pack(fill=Y, expand=1)
+
+        text_container.pack(side=RIGHT, fill=Y)
+        text_container.pack_propagate(False)
+
 
     def set_status(self, status):
-        pass 
+        self.text.config(state=NORMAL)  # make it editable
+        self.text.delete(1.0, END)      # Delete everything in the text
+
+        if self.current_room == None:
+            self.text.insert(END, Game.STATUS_DEAD)
+        else:
+            content = f"{self.current_room}\n"
+            content += f"You are carrying: {self.inventory}\n\n"
+            content += status
+            self.text.insert(END, content)
+
+        self.text.config(state=DISABLED)
+
 
     def set_image(self):
-        pass
+        if self.current_room == None:
+            img = PhotoImage(file=os.path.join("images", "skull.gif"))
+        else:
+            img = PhotoImage(file = self.current_room.image)
+        
+        self.image_container.config(image=img)
+        self.image_container.image = img        # again, persist past the function
+
+        
 
     def clear_entry(self):
-        pass
+        self.player_input.delete(0, END)
 
     def handle_verb_go(self, destination):
-        pass 
+        status = Game.STATUS_BAD_EXIT
+
+        if destination in self.current_room.exits:      # .exits is a dictionary 
+            self.current_room = self.current_room.exits[destination]    # the 'exits' attribute is a dictionary
+            status = Game.STATUS_ROOM_CHANGE
+
+        self.set_status(status)
+        self.set_image()
 
     def handle_verb_look(self, item):
-        pass
+        status = Game.STATUS_BAD_ITEM
+
+        if item in self.current_room.items:             # .items is a dictionary
+            status = self.current_room.items[item]
+        
+        self.set_status(status)
 
     def handle_verb_take(self, grabbable):
-        pass
+        status = Game.STATUS_BAD_GRABBABLE
+
+        if grabbable in self.current_room.grabbables:   # .grabbables is a list
+            self.inventory.append(grabbable)
+            self.current_room.delete_grabbable(grabbable)
+            status = Game.STATUS_GRABBED
+
+        self.set_status(status)
 
     def handle_default(self):
-        pass
+        self.set_status(Game.STATUS_DEFAULT)
+        self.clear_entry()
 
     def play(self):
         self.setup_game()
@@ -123,4 +195,32 @@ class Game(Frame):
         self.set_status("")
 
     def process_input(self, event):
-        pass
+        action = self.player_input.get()
+        action = action.lower()
+
+        if action in Game.EXIT_ACTIONS:
+            exit()                      # kills the game
+
+        if self.current_room == None:
+            self.clear_entry()
+            return                      # this kills the process_input function
+        
+        words = action.split()
+
+        if len(words) != 2:
+            self.handle_default()
+            return 
+        
+        verb = words[0]
+        noun = words[1]
+
+        match verb:
+            case "go": self.handle_verb_go(destination=noun)
+            case "look": self.handle_verb_look(item=noun)
+            case "take": self.handle_verb_take(grabbable=noun)
+
+        self.clear_entry()
+
+
+
+
